@@ -4,19 +4,19 @@ This is an Operating System Midsemester Project (A Group Mini Project)
 # Operating System Midsemester Project: Memory Management System
 
 ## Project Overview
-Welcome to our repository for the Operating System midsemester project. Our goal is to design and implement a basic memory management system using paging, written in C. This project allows us to dive deep into the foundational concepts of operating systems, including address spaces, address translation, paging, and the simulation of processes accessing memory. We aim to not only implement these concepts but also to analyze and optimize our system for enhanced memory efficiency and performance.
+Welcome to our repository for the Operating System midsemester project. Our goal is to design and implement a basic memory management system using paging written in C. This project allows us to dive deep into the foundational concepts of operating systems, including address spaces, address translation, paging, and the simulation of processes accessing memory. We aim to not only implement these concepts but also to analyze and optimize our system for enhanced memory efficiency and performance.
 
 ## Objectives
 - Understand the concepts of address spaces, address translation, and paging.
 - Implement a memory management system that utilizes paging techniques.
-- Simulate process memory access and observe the system's paging behavior.
+- Simulate process memory access and observe the system's paging behaviour.
 - Analyze the memory utilization, page faults, and hit rates under different scenarios.
 - Optimize the system using various page replacement algorithms and compare their effectiveness.
 
 ## Team Members
 - Obed Yiadom Boakye
 - Charles Yeboah
-- Edwin Awariya
+- Edwin Awariyah
 
 We are a group of students enthusiastic about exploring the intricacies of operating systems and committed to applying theoretical knowledge to practical challenges.
 
