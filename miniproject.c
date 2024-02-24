@@ -16,6 +16,39 @@ typedef struct {
 } Frame;
 Frame physicalMemory[TOTAL_FRAMES];
 
+#define MAX_PROCESSES 10 // Assuming a max of 10 processes for simplicity
+
+typedef struct {
+    PageTableEntry* pageTable; // Pointer to a process's page table
+    int isActive; // Simple flag to indicate if this process's page table is active
+} MasterPageTableEntry;
+
+MasterPageTableEntry masterPageTable[MAX_PROCESSES];
+
+// When creating or loading a process, it would be assigned a page table and recorded in the master page table:
+void initializeMasterPageTable() {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        masterPageTable[i].pageTable = NULL; // Initially, no page table assigned
+        masterPageTable[i].isActive = 0; // Process is not active
+    }
+}
+
+void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
+    if (processId < MAX_PROCESSES) {
+        masterPageTable[processId].pageTable = pageTable;
+        masterPageTable[processId].isActive = 1; // Mark the process as active
+    }
+}
+
+unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
+    if (processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
+        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
+        // Use pageTable to translate the address as before
+    }
+    // Handle error or invalid processId
+}
+
+
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
     printf("Fetching page %u from secondary storage.\n", pageNumber);
 }
