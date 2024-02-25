@@ -3,11 +3,11 @@
 #include <time.h>   // For time()
 
 typedef struct {
-    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise
+    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise - to prevent page faults
     unsigned int frameNumber:4; // Frame number: Assuming a max of 16 frames, 4 bits needed
 } PageTableEntry;
 
-#define TOTAL_PAGES 256
+#define TOTAL_PAGES 256 
 PageTableEntry pageTable[TOTAL_PAGES];
 
 #define TOTAL_FRAMES 16
