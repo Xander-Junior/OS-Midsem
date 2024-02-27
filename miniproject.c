@@ -3,51 +3,19 @@
 #include <time.h>   // For time()
 
 typedef struct {
-    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise - to prevent page faults
+    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise
     unsigned int frameNumber:4; // Frame number: Assuming a max of 16 frames, 4 bits needed
 } PageTableEntry;
 
-#define TOTAL_PAGES 256 
+#define TOTAL_PAGES 256
 PageTableEntry pageTable[TOTAL_PAGES];
 
 #define TOTAL_FRAMES 16
 typedef struct {
     unsigned int used:1; // Used bit: 1 if frame is allocated, 0 if free
+    unsigned int processId : 5; // Assuming a maximum of 32 processes, 5 bits needed for process ID
 } Frame;
 Frame physicalMemory[TOTAL_FRAMES];
-
-#define MAX_PROCESSES 10 // Assuming a max of 10 processes for simplicity
-
-typedef struct {
-    PageTableEntry* pageTable; // Pointer to a process's page table
-    int isActive; // Simple flag to indicate if this process's page table is active
-} MasterPageTableEntry;
-
-MasterPageTableEntry masterPageTable[MAX_PROCESSES];
-
-// When creating or loading a process, it would be assigned a page table and recorded in the master page table:
-void initializeMasterPageTable() {
-    for (int i = 0; i < MAX_PROCESSES; i++) {
-        masterPageTable[i].pageTable = NULL; // Initially, no page table assigned
-        masterPageTable[i].isActive = 0; // Process is not active
-    }
-}
-
-void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
-    if (processId < MAX_PROCESSES) {
-        masterPageTable[processId].pageTable = pageTable;
-        masterPageTable[processId].isActive = 1; // Mark the process as active
-    }
-}
-
-unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
-    if (processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
-        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
-        // Use pageTable to translate the address as before
-    }
-    // Handle error or invalid processId
-}
-
 
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
     printf("Fetching page %u from secondary storage.\n", pageNumber);
@@ -60,6 +28,56 @@ int findFreeFrameOrEvict() {
     // Placeholder for eviction logic; should implement a page replacement algorithm
     return 0; // Simplified for example purposes
 }
+
+#define QUEUE_SIZE TOTAL_FRAMES // Assuming one queue entry per frame for simplicity
+
+// Global variables to implement the FIFO queue
+int fifoQueue[QUEUE_SIZE];
+int front = -1, rear = -1;
+
+// Function to enqueue a frame number into the FIFO queue
+void enqueue(int frameNumber) {
+    // Check if the queue is full
+    if ((rear + 1) % QUEUE_SIZE == front) {
+        printf("Queue is Full\n");
+        return;
+    }
+    // If the queue is empty, set front to 0
+    if (front == -1) front = 0;
+    // Increment rear and wrap around if necessary
+    rear = (rear + 1) % QUEUE_SIZE;
+    // Enqueue the frame number
+    fifoQueue[rear] = frameNumber;
+}
+
+// Function to dequeue a frame number from the FIFO queue
+int dequeue() {
+    // Check if the queue is empty
+    if (front == -1) {
+        printf("Queue is Empty\n");
+        return -1;
+    }
+    // Dequeue the frame number
+    int frameNumber = fifoQueue[front];
+    // If front and rear are equal, the queue becomes empty
+    if (front == rear) front = rear = -1;
+        // Otherwise, increment front and wrap around if necessary
+    else front = (front + 1) % QUEUE_SIZE;
+    return frameNumber;
+}
+
+// Function to find a free frame in memory (using a straightforward approach)
+int findFreeFrame(Frame physicalMemory[]) {
+    // Iterate through each frame
+    for (int i = 0; i < TOTAL_FRAMES; i++) {
+        // If the frame is not in use, return its index
+        if (!physicalMemory[i].used) return i;
+    }
+    // If no free frame is found, return -1
+    return -1;
+}
+
+
 
 void handlePageFault(unsigned int pageNumber) {
     int frameNumber = findFreeFrameOrEvict();
@@ -107,6 +125,20 @@ void simulateMemoryAccess() {
         translateAddress(virtualAddress); // This now handles page faults internally
     }
 }
+
+///charles did this
+
+#define MAX_PROCESSES 32
+
+typedef struct {
+    unsigned int processId;
+    unsigned int baseAddress; // This could be a bias or base for the process's logical address space
+} Process;
+
+Process processes[MAX_PROCESSES];
+
+///
+
 
 int main() {
     initializeMemory(); // Initialize page table and frames only once
