@@ -7,11 +7,11 @@ int pageFetches = 0; // To track the number of pages fetched from secondary stor
 int frameEvictions = 0; // To track the number of frame evictions
 
 typedef struct {
-    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise
+    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise - to prevent page faults
     unsigned int frameNumber:4; // Frame number: Assuming a max of 16 frames, 4 bits needed
 } PageTableEntry;
 
-#define TOTAL_PAGES 256
+#define TOTAL_PAGES 256 
 PageTableEntry pageTable[TOTAL_PAGES];
 
 #define TOTAL_FRAMES 16
@@ -20,6 +20,39 @@ typedef struct {
     unsigned int processId : 5; // Assuming a maximum of 32 processes, 5 bits needed for process ID
 } Frame;
 Frame physicalMemory[TOTAL_FRAMES];
+
+#define MAX_PROCESSES 10 // Assuming a max of 10 processes for simplicity
+
+typedef struct {
+    PageTableEntry* pageTable; // Pointer to a process's page table
+    int isActive; // Simple flag to indicate if this process's page table is active
+} MasterPageTableEntry;
+
+MasterPageTableEntry masterPageTable[MAX_PROCESSES];
+
+// When creating or loading a process, it would be assigned a page table and recorded in the master page table:
+void initializeMasterPageTable() {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        masterPageTable[i].pageTable = NULL; // Initially, no page table assigned
+        masterPageTable[i].isActive = 0; // Process is not active
+    }
+}
+
+void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
+    if (processId < MAX_PROCESSES) {
+        masterPageTable[processId].pageTable = pageTable;
+        masterPageTable[processId].isActive = 1; // Mark the process as active
+    }
+}
+
+unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
+    if (processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
+        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
+        // Use pageTable to translate the address as before
+    }
+    // Handle error or invalid processId
+}
+
 
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
 	printf("Fetching page %u from secondary storage.\n", pageNumber);
