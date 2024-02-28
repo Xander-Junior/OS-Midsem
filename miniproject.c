@@ -136,17 +136,22 @@ int findFreeFrameOrEvict() {
 
 
 void handlePageFault(unsigned int pageNumber) {
-	pageFaults++; // Increment page faults
-    	int frameNumber = findFreeFrameOrEvict();
-    	if (frameNumber == -1) { // Check if a frame was successfully allocated or evicted
-		fetchPageFromSecondaryStorage(pageNumber);
-        	physicalMemory[frameNumber].used = 1;
-        	physicalMemory[frameNumber].processId = processId; // Assign the process ID
-        	pageTable[pageNumber].valid = 1;
-        	pageTable[pageNumber].frameNumber = frameNumber;
-	}else{
-		printf("Error: No available frame and eviction not possible.\n");
-	}
+    pageFaults++; // Assuming pageFaults is a global counter of page faults
+    int frameNumber = findFreeFrameOrEvict();
+    
+    // Correctly check for a successful frame allocation/eviction
+    if (frameNumber != -1) {
+        fetchPageFromSecondaryStorage(pageNumber);
+        physicalMemory[frameNumber].used = 1;
+        // Note: Ensure processId is defined or passed correctly to this function if you're using it
+        physicalMemory[frameNumber].processId = processId; // Assign the process ID, if applicable
+        pageTable[pageNumber].valid = 1;
+        pageTable[pageNumber].frameNumber = frameNumber;
+    } else {
+        // Error handling: No available frame and eviction not possible
+        printf("Error: No available frame and eviction not possible.\n");
+        // Optionally, increment an error counter or take other recovery actions
+    }
 }
 
 
