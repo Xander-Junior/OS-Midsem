@@ -45,34 +45,7 @@ void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
     }
 }
 
-unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
-    if (processId >= 0 && processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
-        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
-        if (!pageTable) {
-            printf("Error: Page table for process ID %d not initialized.\n", processId);
-            return 0xFFFFFFFF; // Indicate error
-        }
 
-        unsigned int pageNumber = virtualAddress / 256; // Assuming 256-byte pages
-        if (pageNumber >= TOTAL_PAGES) {
-            printf("Error: Virtual address %u out of bounds for process ID %d.\n", virtualAddress, processId);
-            return 0xFFFFFFFF; // Indicate error
-        }
-
-        if (pageTable[pageNumber].valid) {
-            unsigned int frameNumber = pageTable[pageNumber].frameNumber;
-            unsigned int offset = virtualAddress % 256;
-            unsigned int physicalAddress = (frameNumber * 256) + offset;
-            return physicalAddress;
-        } else {
-            handlePageFault(pageNumber, processId); // Adjusted to pass processId
-            return 0xFFFFFFFF; // Optionally, could repeat translation attempt after handling fault
-        }
-    } else {
-        printf("Invalid processId %d or process is not active.\n", processId);
-        return 0xFFFFFFFF; // Indicate error
-    }
-}
 
 
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
@@ -207,6 +180,35 @@ unsigned int translateAddress(unsigned int virtualAddress, unsigned int processI
     } else {
         handlePageFault(pageNumber, processId);
         return 0xFFFFFFFF; // Indicate page fault handled
+    }
+}
+
+unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
+    if (processId >= 0 && processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
+        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
+        if (!pageTable) {
+            printf("Error: Page table for process ID %d not initialized.\n", processId);
+            return 0xFFFFFFFF; // Indicate error
+        }
+
+        unsigned int pageNumber = virtualAddress / 256; // Assuming 256-byte pages
+        if (pageNumber >= TOTAL_PAGES) {
+            printf("Error: Virtual address %u out of bounds for process ID %d.\n", virtualAddress, processId);
+            return 0xFFFFFFFF; // Indicate error
+        }
+
+        if (pageTable[pageNumber].valid) {
+            unsigned int frameNumber = pageTable[pageNumber].frameNumber;
+            unsigned int offset = virtualAddress % 256;
+            unsigned int physicalAddress = (frameNumber * 256) + offset;
+            return physicalAddress;
+        } else {
+            handlePageFault(pageNumber, processId); // Adjusted to pass processId
+            return 0xFFFFFFFF; // Optionally, could repeat translation attempt after handling fault
+        }
+    } else {
+        printf("Invalid processId %d or process is not active.\n", processId);
+        return 0xFFFFFFFF; // Indicate error
     }
 }
 
