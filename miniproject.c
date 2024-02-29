@@ -27,43 +27,75 @@ Frame physicalMemory[TOTAL_FRAMES];
 #define MAX_PROCESSES 10 // Assuming a max of 10 processes for simplicity
 
 typedef struct {
-    PageTableEntry* pageTable; // Pointer to a process's page table
-    int isActive; // Simple flag to indicate if this process's page table is active
+     PageTableEntry* pageTable; // Existing page table pointer
+    int isActive; // Existing activity flag
+    unsigned int* allocatedAddresses; // Array to track allocated addresses
+    int allocatedCount; // Number of allocated addresses
 } MasterPageTableEntry;
 
 MasterPageTableEntry masterPageTable[MAX_PROCESSES];
 
-void initializeProcessPageTable(int processId) {
-    if (processId < 0 || processId >= MAX_PROCESSES) {
-        printf("Invalid process ID.\n");
-        return;
-    }
 
-    // Allocate memory for the process's page table
-    PageTableEntry* newPageTable = (PageTableEntry*)malloc(TOTAL_PAGES * sizeof(PageTableEntry));
-    if (newPageTable == NULL) {
-        printf("Failed to allocate memory for page table of process %d.\n", processId);
-        return;
+// Dynamically resizing the allocated addresses array
+void addAllocatedAddress(MasterPageTableEntry* entry, unsigned int address) {
+    entry->allocatedAddresses = realloc(entry->allocatedAddresses, (entry->allocatedCount + 1) * sizeof(unsigned int));
+    if (entry->allocatedAddresses != NULL) {
+        entry->allocatedAddresses[entry->allocatedCount] = address;
+        entry->allocatedCount++;
     }
-
-    // Initialize the new page table entries
-    for (int i = 0; i < TOTAL_PAGES; i++) {
-        newPageTable[i].valid = 0;  // Mark all pages as invalid initially
-        newPageTable[i].frameNumber = 0;  // Frame number is 0 (or any other default value)
-        newPageTable[i].processId = processId;  // Assign the process ID to each page table entry
-    }
-
-    // Assign the new page table to the process
-    masterPageTable[processId].pageTable = newPageTable;
-    masterPageTable[processId].isActive = 1;  // Mark the process as active
 }
-// This function should find and return an available process ID to use. If no IDs are available, it should return -1.
+
+void removeAllocatedAddress(MasterPageTableEntry* entry, unsigned int address) {
+    for (int i = 0; i < entry->allocatedCount; i++) {
+        if (entry->allocatedAddresses[i] == address) {
+            // Shift the rest of the addresses down
+            for (int j = i; j < entry->allocatedCount - 1; j++) {
+                entry->allocatedAddresses[j] = entry->allocatedAddresses[j + 1];
+            }
+            entry->allocatedCount--;
+            entry->allocatedAddresses = realloc(entry->allocatedAddresses, entry->allocatedCount * sizeof(unsigned int));
+            break;
+        }
+    }
+}
+
+
+// Function to dynamically assign a process ID and initialize its page table
+int initializeProcessPageTable() {
+    for (int processId = 0; processId < MAX_PROCESSES; processId++) {
+        if (!masterPageTable[processId].isActive) {
+            // Allocate memory for the process's page table
+            PageTableEntry* newPageTable = (PageTableEntry*)malloc(TOTAL_PAGES * sizeof(PageTableEntry));
+            if (newPageTable == NULL) {
+                printf("Failed to allocate memory for page table.\n");
+                continue;  // Try next processId or handle error appropriately
+            }
+
+            // Initialize the new page table entries
+            for (int i = 0; i < TOTAL_PAGES; i++) {
+                newPageTable[i].valid = 0;  // Mark all pages as invalid initially
+                newPageTable[i].frameNumber = 0;  // Frame number is 0 (or any other default value)
+            }
+
+            // Assign the new page table to the process and mark as active
+            masterPageTable[processId].pageTable = newPageTable;
+            masterPageTable[processId].isActive = 1;
+            
+            return processId;  // Return the assigned process ID
+        }
+    }
+
+    return -1;  // Indicate failure to find an available process ID
+}
+
 
 // When creating or loading a process, it would be assigned a page table and recorded in the master page table:
 void initializeMasterPageTable() {
     for (int i = 0; i < MAX_PROCESSES; i++) {
         masterPageTable[i].pageTable = NULL; // Initially, no page table assigned
         masterPageTable[i].isActive = 0; // Process is not active
+        masterPageTable[i].allocatedAddresses = NULL;
+        masterPageTable[i].allocatedCount = 0;
     }
 }
 
@@ -300,20 +332,27 @@ void simulateMemoryAccess() {
         if (strcmp(action, "malloc") == 0) {
             simulateMalloc(processId);
         } else if (strcmp(action, "free") == 0) {
-            // Assuming you have a way to select a valid virtual address to free
-            unsigned int virtualAddress = /* A way to select a previously allocated address */;
-            simulateFree(processId, virtualAddress);
+            if (masterPageTable[processId].allocatedCount > 0) {
+                // Select a previously allocated address at random for demonstration purposes
+                int allocatedIndex = rand() % masterPageTable[processId].allocatedCount;
+                unsigned int virtualAddress = masterPageTable[processId].allocatedAddresses[allocatedIndex];
+                simulateFree(processId, virtualAddress);
+            }
         } else if (strcmp(action, "read") == 0 || strcmp(action, "write") == 0) {
-            // Assuming a valid virtual address for read/write operations
-            unsigned int virtualAddress = /* A way to select a valid address */;
-            if (strcmp(action, "read") == 0) {
-                simulateRead(processId, virtualAddress);
-            } else {
-                simulateWrite(processId, virtualAddress);
+            if (masterPageTable[processId].allocatedCount > 0) {
+                // Select a valid address from the allocated addresses for the process
+                int allocatedIndex = rand() % masterPageTable[processId].allocatedCount;
+                unsigned int virtualAddress = masterPageTable[processId].allocatedAddresses[allocatedIndex];
+                if (strcmp(action, "read") == 0) {
+                    simulateRead(processId, virtualAddress);
+                } else {
+                    simulateWrite(processId, virtualAddress);
+                }
             }
         }
     }
 }
+
 
 
 
