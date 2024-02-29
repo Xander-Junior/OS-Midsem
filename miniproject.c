@@ -367,12 +367,20 @@ void displayPageAllocation() {
 
 
 int main() {
-    initializeMemory(); // Initialize page table and frames only once
+    initializeMasterPageTable(); // Initialize the master page table structure
+    
+    // Initialize processes and their page tables
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        int pid = initializeProcessPageTable(); // Attempt to initialize each process
+        if (pid == -1) {
+            printf("Failed to initialize process %d\n", i);
+            // Handle error or break if critical
+        }
+    }
 
-    simulateMemoryAccess(); // Run the memory access simulation
-    displayMemoryUtilization(); // Display final memory utilization stats
-
-    // The rest of your main function logic can go here
+    simulateMemoryAccess(); // Proceed with simulation after initialization
+    displayMemoryUtilization();
+    displayPerformanceMetrics();
 
     return 0;
 }
