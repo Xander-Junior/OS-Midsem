@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h> // For rand()
 #include <time.h>   // For time()
+#include <string.h> // For strcmp
+
 
 int pageFaults = 0; // To track the number of page faults
 int pageFetches = 0; // To track the number of pages fetched from secondary storage
@@ -9,6 +11,7 @@ int frameEvictions = 0; // To track the number of frame evictions
 typedef struct {
     unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise - to prevent page faults
     unsigned int frameNumber:4; // Frame number: Assuming a max of 16 frames, 4 bits needed
+    int processId; // Add process ID to track ownership
 } PageTableEntry;
 
 #define TOTAL_PAGES 256 
@@ -29,6 +32,32 @@ typedef struct {
 } MasterPageTableEntry;
 
 MasterPageTableEntry masterPageTable[MAX_PROCESSES];
+
+void initializeProcessPageTable(int processId) {
+    if (processId < 0 || processId >= MAX_PROCESSES) {
+        printf("Invalid process ID.\n");
+        return;
+    }
+
+    // Allocate memory for the process's page table
+    PageTableEntry* newPageTable = (PageTableEntry*)malloc(TOTAL_PAGES * sizeof(PageTableEntry));
+    if (newPageTable == NULL) {
+        printf("Failed to allocate memory for page table of process %d.\n", processId);
+        return;
+    }
+
+    // Initialize the new page table entries
+    for (int i = 0; i < TOTAL_PAGES; i++) {
+        newPageTable[i].valid = 0;  // Mark all pages as invalid initially
+        newPageTable[i].frameNumber = 0;  // Frame number is 0 (or any other default value)
+        newPageTable[i].processId = processId;  // Assign the process ID to each page table entry
+    }
+
+    // Assign the new page table to the process
+    masterPageTable[processId].pageTable = newPageTable;
+    masterPageTable[processId].isActive = 1;  // Mark the process as active
+}
+// This function should find and return an available process ID to use. If no IDs are available, it should return -1.
 
 // When creating or loading a process, it would be assigned a page table and recorded in the master page table:
 void initializeMasterPageTable() {
@@ -134,6 +163,7 @@ void handlePageFault(unsigned int pageNumber, unsigned int processId) {
         physicalMemory[frameNumber].processId = processId; // Assign the process ID, if applicable
         pageTable[pageNumber].valid = 1;
         pageTable[pageNumber].frameNumber = frameNumber;
+        enqueue(frameNumber); // Re-enqueue the frame after reallocation
     } else {
         // Error handling: No available frame and eviction not possible
         printf("Error: No available frame and eviction not possible.\n");
@@ -184,42 +214,118 @@ unsigned int translateAddress(unsigned int virtualAddress, unsigned int processI
 }
 
 unsigned int translateAddressForProcess(int processId, unsigned int virtualAddress) {
-    if (processId >= 0 && processId < MAX_PROCESSES && masterPageTable[processId].isActive) {
-        PageTableEntry* pageTable = masterPageTable[processId].pageTable;
-        if (!pageTable) {
-            printf("Error: Page table for process ID %d not initialized.\n", processId);
-            return 0xFFFFFFFF; // Indicate error
-        }
-
-        unsigned int pageNumber = virtualAddress / 256; // Assuming 256-byte pages
-        if (pageNumber >= TOTAL_PAGES) {
-            printf("Error: Virtual address %u out of bounds for process ID %d.\n", virtualAddress, processId);
-            return 0xFFFFFFFF; // Indicate error
-        }
-
-        if (pageTable[pageNumber].valid) {
-            unsigned int frameNumber = pageTable[pageNumber].frameNumber;
-            unsigned int offset = virtualAddress % 256;
-            unsigned int physicalAddress = (frameNumber * 256) + offset;
-            return physicalAddress;
-        } else {
-            handlePageFault(pageNumber, processId); // Adjusted to pass processId
-            return 0xFFFFFFFF; // Optionally, could repeat translation attempt after handling fault
-        }
-    } else {
-        printf("Invalid processId %d or process is not active.\n", processId);
+    // Check for invalid process ID or inactive process
+    if (processId < 0 || processId >= MAX_PROCESSES || !masterPageTable[processId].isActive) {
+        printf("Error: Invalid processId %d or process is not active.\n", processId);
         return 0xFFFFFFFF; // Indicate error
     }
+
+    PageTableEntry* pageTable = masterPageTable[processId].pageTable;
+    if (!pageTable) {
+        // This check ensures that the process has an assigned and initialized page table.
+        printf("Error: Page table for process ID %d not initialized.\n", processId);
+        return 0xFFFFFFFF; // Indicate error
+    }
+
+    // Calculate the page number from the virtual address
+    unsigned int pageNumber = virtualAddress / 256; // Assuming 256-byte pages
+    if (pageNumber >= TOTAL_PAGES) {
+        printf("Error: Virtual address %u out of bounds for process ID %d.\n", virtualAddress, processId);
+        return 0xFFFFFFFF; // Indicate error
+    }
+
+    // If the page is valid, translate the virtual address to a physical address
+    if (pageTable[pageNumber].valid) {
+        unsigned int frameNumber = pageTable[pageNumber].frameNumber;
+        unsigned int offset = virtualAddress % 256;
+        unsigned int physicalAddress = (frameNumber * 256) + offset;
+        return physicalAddress;
+    } else {
+        // Handle the page fault if the page is not valid (i.e., not in physical memory)
+        handlePageFault(pageNumber, processId);
+        return 0xFFFFFFFF; // Indicate that a page fault occurred and was handled
+    }
 }
+
+
+void simulateMalloc(int processId) {
+    // Simulate a virtual address request by the process
+    unsigned int virtualAddress = (rand() % TOTAL_PAGES) * 256; // Assuming page size is 256
+    printf("Process %d requests memory allocation (malloc)\n", processId);
+
+    // Attempt to translate the address, simulating page allocation
+    unsigned int physicalAddress = translateAddressForProcess(processId, virtualAddress);
+
+    // Check if translation was successful or led to a page fault
+    if (physicalAddress != 0xFFFFFFFF) {
+        printf("Allocated Virtual Address %u to Physical Address %u for Process %d\n", virtualAddress, physicalAddress, processId);
+    } else {
+        printf("Failed to allocate memory for Process %d\n", processId);
+    }
+}
+
+void simulateFree(int processId, unsigned int virtualAddress) {
+    printf("Process %d requests to free memory at Virtual Address %u\n", processId, virtualAddress);
+    unsigned int pageNumber = virtualAddress / 256; // Assuming page size is 256
+
+    // Check if the page is currently allocated
+    if (masterPageTable[processId].pageTable[pageNumber].valid) {
+        masterPageTable[processId].pageTable[pageNumber].valid = 0; // Mark as free
+        printf("Virtual Address %u freed for Process %d\n", virtualAddress, processId);
+    } else {
+        printf("Virtual Address %u is not currently allocated for Process %d\n", virtualAddress, processId);
+    }
+}
+void simulateRead(int processId, unsigned int virtualAddress) {
+    printf("Process %d reads from Virtual Address %u\n", processId, virtualAddress);
+    // You might check if the address is valid and allocated before reading.
+}
+
+void simulateWrite(int processId, unsigned int virtualAddress) {
+    printf("Process %d writes to Virtual Address %u\n", processId, virtualAddress);
+    // Similarly, check if the address is valid and allocated before writing.
+}
+
 
 void simulateMemoryAccess() {
     srand(time(NULL)); // Seed the random number generator
-    for (int i = 0; i < 100; i++) { // Simulate 100 memory accesses
-        unsigned int virtualAddress = (rand() % TOTAL_PAGES) * 256 + (rand() % 256); // Random page and offset
-        unsigned int processId = rand() % 32; // Random process ID
-	translateAddress(virtualAddress, processId); // This now handles page faults internally
+    const char* actions[] = {"malloc", "free", "read", "write"};
+    int actionsCount = sizeof(actions) / sizeof(actions[0]);
+
+    for (int i = 0; i < 100; i++) {
+        int processId = rand() % MAX_PROCESSES; // Ensure this matches your process ID range
+        // Randomly select an action
+        const char* action = actions[rand() % actionsCount];
+
+        if (strcmp(action, "malloc") == 0) {
+            simulateMalloc(processId);
+        } else if (strcmp(action, "free") == 0) {
+            // Assuming you have a way to select a valid virtual address to free
+            unsigned int virtualAddress = /* A way to select a previously allocated address */;
+            simulateFree(processId, virtualAddress);
+        } else if (strcmp(action, "read") == 0 || strcmp(action, "write") == 0) {
+            // Assuming a valid virtual address for read/write operations
+            unsigned int virtualAddress = /* A way to select a valid address */;
+            if (strcmp(action, "read") == 0) {
+                simulateRead(processId, virtualAddress);
+            } else {
+                simulateWrite(processId, virtualAddress);
+            }
+        }
     }
 }
+
+
+
+void displayPageAllocation() {
+    printf("Page Allocation Status:\n");
+    for (int i = 0; i < TOTAL_PAGES; i++) {
+        if (pageTable[i].valid) {
+            printf("Page %d is allocated to Process %d\n", i, pageTable[i].processId);
+        }
+    }
+}
+
 
 int main() {
     initializeMemory(); // Initialize page table and frames only once
