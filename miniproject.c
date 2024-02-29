@@ -66,6 +66,8 @@ int initializeProcessPageTable() {
         if (!masterPageTable[processId].isActive) {
             // Allocate memory for the process's page table
             PageTableEntry* newPageTable = (PageTableEntry*)malloc(TOTAL_PAGES * sizeof(PageTableEntry));
+            printf("Page table for process %d allocated at %p.\n", processId, (void*)newPageTable);
+
             if (newPageTable == NULL) {
                 printf("Failed to allocate memory for page table.\n");
                 continue;  // Try next processId or handle error appropriately
@@ -134,6 +136,9 @@ void enqueue(int frameNumber) {
     rear = (rear + 1) % QUEUE_SIZE;
     // Enqueue the frame number
     fifoQueue[rear] = frameNumber;
+
+    printf("Enqueuing frame %d. Current rear: %d, front: %d\n", frameNumber, rear, front);
+
 }
 
 // Function to dequeue a frame number from the FIFO queue
@@ -149,6 +154,9 @@ int dequeue() {
     if (front == rear) front = rear = -1;
     // Otherwise, increment front and wrap around if necessary
     else front = (front + 1) % QUEUE_SIZE;
+
+    printf("Dequeueing frame. Current front: %d, rear: %d\n", front, rear);
+
     return frameNumber;
 }
 
@@ -186,9 +194,11 @@ int findFreeFrameOrEvict() {
 void handlePageFault(unsigned int pageNumber, unsigned int processId) {
     pageFaults++; // Assuming pageFaults is a global counter of page faults
     int frameNumber = findFreeFrameOrEvict();
-    
+    printf("Handling page fault for process %d, page %d.\n", processId, pageNumber);
+
     // Correctly check for a successful frame allocation/eviction
     if (frameNumber != -1) {
+        printf("Page %d assigned frame %d.\n", pageNumber, frameNumber);
         fetchPageFromSecondaryStorage(pageNumber);
         physicalMemory[frameNumber].used = 1;
         // Note: Ensure processId is defined or passed correctly to this function if you're using it
@@ -199,6 +209,7 @@ void handlePageFault(unsigned int pageNumber, unsigned int processId) {
     } else {
         // Error handling: No available frame and eviction not possible
         printf("Error: No available frame and eviction not possible.\n");
+        printf("Failed to allocate frame for page %d.\n", pageNumber);
         // Optionally, increment an error counter or take other recovery actions
     }
 }
@@ -329,6 +340,9 @@ void simulateMemoryAccess() {
         // Randomly select an action
         const char* action = actions[rand() % actionsCount];
 
+        printf("Simulating action '%s' for process %d.\n", action, processId);
+
+
         if (strcmp(action, "malloc") == 0) {
             simulateMalloc(processId);
         } else if (strcmp(action, "free") == 0) {
@@ -375,6 +389,9 @@ int main() {
         if (pid == -1) {
             printf("Failed to initialize process %d\n", i);
             // Handle error or break if critical
+        } else {
+            printf("Process %d activated.\n", pid);
+            printf("Process %d's page table initialized.\n", pid); // Corrected to use 'pid'
         }
     }
 
@@ -384,3 +401,4 @@ int main() {
 
     return 0;
 }
+
