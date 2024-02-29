@@ -59,13 +59,6 @@ void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
 	pageFetches++;
 }
 
-int findFreeFrameOrEvict() {
-    for (int i = 0; i < TOTAL_FRAMES; i++) {
-        if (!physicalMemory[i].used) return i;
-    }
-    // Placeholder for eviction logic; should implement a page replacement algorithm
-    return 0; // Simplified for example purposes
-}
 
 #define QUEUE_SIZE TOTAL_FRAMES // Assuming one queue entry per frame for simplicity
 
@@ -135,7 +128,7 @@ int findFreeFrameOrEvict() {
 }
 
 
-void handlePageFault(unsigned int pageNumber) {
+void handlePageFault(unsigned int pageNumber, unsigned int processId) {
     pageFaults++; // Assuming pageFaults is a global counter of page faults
     int frameNumber = findFreeFrameOrEvict();
     
@@ -183,7 +176,7 @@ void initializeMemory() {
     }
 }
 
-unsigned int translateAddress(unsigned int virtualAddress) {
+unsigned int translateAddress(unsigned int virtualAddress, unsigned int processId) {
     unsigned int pageNumber = virtualAddress / 256;
     if (pageTable[pageNumber].valid) {
         unsigned int frameNumber = pageTable[pageNumber].frameNumber;
@@ -191,7 +184,7 @@ unsigned int translateAddress(unsigned int virtualAddress) {
         unsigned int physicalAddress = (frameNumber * 256) + offset;
         return physicalAddress;
     } else {
-        handlePageFault(pageNumber);
+        handlePageFault(pageNumber, processId);
         return 0xFFFFFFFF; // Indicate page fault handled
     }
 }
@@ -201,7 +194,7 @@ void simulateMemoryAccess() {
     for (int i = 0; i < 100; i++) { // Simulate 100 memory accesses
         unsigned int virtualAddress = (rand() % TOTAL_PAGES) * 256 + (rand() % 256); // Random page and offset
         unsigned int processId = rand() % 32; // Random process ID
-	translateAddress(virtualAddress); // This now handles page faults internally
+	translateAddress(virtualAddress, processId); // This now handles page faults internally
     }
 }
 
