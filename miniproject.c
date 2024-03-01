@@ -284,7 +284,7 @@ unsigned int translateAddressForProcess(int processId, unsigned int virtualAddre
         unsigned int physicalAddress = (frameNumber * 256) + offset;
         return physicalAddress;
     } else {
-        // Handle the page fault if the page is not valid (i.e., not in physical memory)
+        // Handle the page fault if the page is not valid (i.e., not in physical memory)e
         handlePageFault(pageNumber, processId);
         return 0xFFFFFFFF; // Indicate that a page fault occurred and was handled
     }
