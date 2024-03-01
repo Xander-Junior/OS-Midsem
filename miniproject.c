@@ -24,8 +24,6 @@ typedef struct {
 } Frame;
 Frame physicalMemory[TOTAL_FRAMES];
 
-<<<<<<< Updated upstream
-=======
 #define MAX_PROCESSES 10 // Assuming a max of 10 processes for simplicity
 
 typedef struct {
@@ -121,7 +119,7 @@ void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
 }
 
 
->>>>>>> Stashed changes
+
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
 	printf("Fetching page %u from secondary storage.\n", pageNumber);
 	pageFetches++;
@@ -133,30 +131,6 @@ void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
 int fifoQueue[QUEUE_SIZE];
 int front = -1, rear = -1;
 
-// Function to enqueue a frame number into the FIFO queue
-void enqueue(int frameNumber) {
-    // Check if the queue is full
-    if ((rear + 1) % QUEUE_SIZE == front) {
-        printf("Queue is Full\n");
-        return;
-    }
-    // If the queue is empty, set front to 0
-    if (front == -1) front = 0;
-    // Increment rear and wrap around if necessary
-    rear = (rear + 1) % QUEUE_SIZE;
-    // Enqueue the frame number
-    fifoQueue[rear] = frameNumber;
-
-    printf("Enqueuing frame %d. Current rear: %d, front: %d\n", frameNumber, rear, front);
-
-}
-
-<<<<<<< Updated upstream
-#define QUEUE_SIZE TOTAL_FRAMES // Assuming one queue entry per frame for simplicity
-
-// Global variables to implement the FIFO queue
-int fifoQueue[QUEUE_SIZE];
-int front = -1, rear = -1;
 
 // Function to enqueue a frame number into the FIFO queue
 void enqueue(int frameNumber) {
@@ -173,8 +147,7 @@ void enqueue(int frameNumber) {
     fifoQueue[rear] = frameNumber;
 }
 
-=======
->>>>>>> Stashed changes
+
 // Function to dequeue a frame number from the FIFO queue
 int dequeue() {
     // Check if the queue is empty
@@ -186,7 +159,6 @@ int dequeue() {
     int frameNumber = fifoQueue[front];
     // If front and rear are equal, the queue becomes empty
     if (front == rear) front = rear = -1;
-<<<<<<< Updated upstream
         // Otherwise, increment front and wrap around if necessary
     else front = (front + 1) % QUEUE_SIZE;
     return frameNumber;
@@ -205,22 +177,6 @@ int findFreeFrame(Frame physicalMemory[]) {
 
 
 
-void handlePageFault(unsigned int pageNumber) {
-    int frameNumber = findFreeFrameOrEvict();
-    // Evict page if necessary (not shown here for simplicity)
-    fetchPageFromSecondaryStorage(pageNumber);
-    physicalMemory[frameNumber].used = 1;
-    pageTable[pageNumber].valid = 1;
-    pageTable[pageNumber].frameNumber = frameNumber;
-=======
-    // Otherwise, increment front and wrap around if necessary
-    else front = (front + 1) % QUEUE_SIZE;
-
-    printf("Dequeueing frame. Current front: %d, rear: %d\n", front, rear);
-
-    return frameNumber;
->>>>>>> Stashed changes
-}
 
 
 int findFreeFrameOrEvict(unsigned int processId) { // Added processId parameter
@@ -348,10 +304,6 @@ unsigned int translateAddressForProcess(int processId, unsigned int virtualAddre
     }
 }
 
-<<<<<<< Updated upstream
-///charles did this
-
-#define MAX_PROCESSES 32
 
 typedef struct {
     unsigned int processId;
@@ -360,8 +312,7 @@ typedef struct {
 
 Process processes[MAX_PROCESSES];
 
-///
-=======
+
 void simulateMalloc(int processId) {
     // Simulate requesting a random amount of memory, not just a single page
     int numPages = (rand() % 5) + 1; // For example, request between 1 and 5 pages
@@ -461,7 +412,6 @@ void displayPageAllocation() {
         }
     }
 }
->>>>>>> Stashed changes
 
 
 int main() {
