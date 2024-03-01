@@ -9,12 +9,12 @@ int pageFetches = 0; // To track the number of pages fetched from secondary stor
 int frameEvictions = 0; // To track the number of frame evictions
 
 typedef struct {
-    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise - to prevent page faults
+    unsigned int valid:1;    // Valid bit: 1 if page is in physical memory, 0 otherwise
     unsigned int frameNumber:4; // Frame number: Assuming a max of 16 frames, 4 bits needed
     int processId; // Add process ID to track ownership
 } PageTableEntry;
 
-#define TOTAL_PAGES 256 
+#define TOTAL_PAGES 256
 PageTableEntry pageTable[TOTAL_PAGES];
 
 #define TOTAL_FRAMES 16
@@ -82,7 +82,7 @@ int initializeProcessPageTable() {
             // Assign the new page table to the process and mark as active
             masterPageTable[processId].pageTable = newPageTable;
             masterPageTable[processId].isActive = 1;
-            
+
             return processId;  // Return the assigned process ID
         }
     }
@@ -92,14 +92,24 @@ int initializeProcessPageTable() {
 
 
 // When creating or loading a process, it would be assigned a page table and recorded in the master page table:
+// Initialization function for master page table and process page tables
 void initializeMasterPageTable() {
     for (int i = 0; i < MAX_PROCESSES; i++) {
-        masterPageTable[i].pageTable = NULL; // Initially, no page table assigned
-        masterPageTable[i].isActive = 0; // Process is not active
+        masterPageTable[i].isActive = 0; // Process is not active initially
         masterPageTable[i].allocatedAddresses = NULL;
         masterPageTable[i].allocatedCount = 0;
+        masterPageTable[i].pageTable = (PageTableEntry*)malloc(TOTAL_PAGES * sizeof(PageTableEntry));
+
+        if (masterPageTable[i].pageTable != NULL) {
+            for (int j = 0; j < TOTAL_PAGES; j++) {
+                masterPageTable[i].pageTable[j].valid = 0;
+                masterPageTable[i].pageTable[j].frameNumber = 0;
+                masterPageTable[i].pageTable[j].processId = i; // Assign the process ID here
+            }
+        }
     }
 }
+
 
 void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
     if (processId < MAX_PROCESSES) {
@@ -110,18 +120,17 @@ void assignPageTableToProcess(int processId, PageTableEntry* pageTable) {
 
 
 
-
 void fetchPageFromSecondaryStorage(unsigned int pageNumber) {
 	printf("Fetching page %u from secondary storage.\n", pageNumber);
 	pageFetches++;
 }
-
 
 #define QUEUE_SIZE TOTAL_FRAMES // Assuming one queue entry per frame for simplicity
 
 // Global variables to implement the FIFO queue
 int fifoQueue[QUEUE_SIZE];
 int front = -1, rear = -1;
+
 
 // Function to enqueue a frame number into the FIFO queue
 void enqueue(int frameNumber) {
@@ -136,10 +145,8 @@ void enqueue(int frameNumber) {
     rear = (rear + 1) % QUEUE_SIZE;
     // Enqueue the frame number
     fifoQueue[rear] = frameNumber;
-
-    printf("Enqueuing frame %d. Current rear: %d, front: %d\n", frameNumber, rear, front);
-
 }
+
 
 // Function to dequeue a frame number from the FIFO queue
 int dequeue() {
@@ -152,60 +159,67 @@ int dequeue() {
     int frameNumber = fifoQueue[front];
     // If front and rear are equal, the queue becomes empty
     if (front == rear) front = rear = -1;
-    // Otherwise, increment front and wrap around if necessary
+        // Otherwise, increment front and wrap around if necessary
     else front = (front + 1) % QUEUE_SIZE;
-
-    printf("Dequeueing frame. Current front: %d, rear: %d\n", front, rear);
-
     return frameNumber;
+}
+
+// Function to find a free frame in memory (using a straightforward approach)
+int findFreeFrame(Frame physicalMemory[]) {
+    // Iterate through each frame
+    for (int i = 0; i < TOTAL_FRAMES; i++) {
+        // If the frame is not in use, return its index
+        if (!physicalMemory[i].used) return i;
+    }
+    // If no free frame is found, return -1
+    return -1;
 }
 
 
 
-int findFreeFrameOrEvict() {
+
+
+int findFreeFrameOrEvict(unsigned int processId) { // Added processId parameter
+    // Frame allocation logic
     for (int i = 0; i < TOTAL_FRAMES; i++) {
         if (!physicalMemory[i].used) {
             enqueue(i); // Enqueue this frame as it's now being used
             return i;
         }
     }
-    
-    // If no free frame is found, proceed to evict the oldest frame
+
+    // Evict the oldest frame
     int frameToEvict = dequeue();
-    if (frameToEvict == -1) {
+    if (frameToEvict != -1) {
+        // Invalidate the page using this frame in the specified process's page table
+        PageTableEntry* processPageTable = masterPageTable[processId].pageTable;
+        for (unsigned int pageNumber = 0; pageNumber < TOTAL_PAGES; pageNumber++) {
+            if (processPageTable[pageNumber].valid && processPageTable[pageNumber].frameNumber == frameToEvict) {
+                processPageTable[pageNumber].valid = 0; // Invalidate
+                break;
+            }
+        }
+        frameEvictions++;
+        return frameToEvict;
+    } else {
         printf("Error: FIFO queue is empty. Cannot evict a frame.\n");
         return -1; // Error case, queue was empty
     }
-    
-    // Before evicting, we need to find which page is currently using this frame
-    // and invalidate that page in the page table. This requires a reverse lookup.
-    for (unsigned int pageNumber = 0; pageNumber < TOTAL_PAGES; pageNumber++) {
-        if (pageTable[pageNumber].valid && pageTable[pageNumber].frameNumber == frameToEvict) {
-            pageTable[pageNumber].valid = 0; // Invalidate the page table entry
-            break; // Assuming one page per frame, we can break once found
-        }
-    }
-    
-    // Note: Here you would ideally handle copying the frame's content back to secondary storage if needed
-    return frameToEvict;
 }
 
 
-void handlePageFault(unsigned int pageNumber, unsigned int processId) {
-    pageFaults++; // Assuming pageFaults is a global counter of page faults
-    int frameNumber = findFreeFrameOrEvict();
-    printf("Handling page fault for process %d, page %d.\n", processId, pageNumber);
 
-    // Correctly check for a successful frame allocation/eviction
+void handlePageFault(unsigned int pageNumber, unsigned int processId) {
+    pageFaults++;
+    PageTableEntry* processPageTable = masterPageTable[processId].pageTable; // Get the specific process's page table
+
+    int frameNumber = findFreeFrameOrEvict(processId); // Adjusted to consider process ID
     if (frameNumber != -1) {
-        printf("Page %d assigned frame %d.\n", pageNumber, frameNumber);
         fetchPageFromSecondaryStorage(pageNumber);
         physicalMemory[frameNumber].used = 1;
-        // Note: Ensure processId is defined or passed correctly to this function if you're using it
-        physicalMemory[frameNumber].processId = processId; // Assign the process ID, if applicable
-        pageTable[pageNumber].valid = 1;
-        pageTable[pageNumber].frameNumber = frameNumber;
-        enqueue(frameNumber); // Re-enqueue the frame after reallocation
+        physicalMemory[frameNumber].processId = processId;
+        processPageTable[pageNumber].valid = 1;
+        processPageTable[pageNumber].frameNumber = frameNumber;
     } else {
         // Error handling: No available frame and eviction not possible
         printf("Error: No available frame and eviction not possible.\n");
@@ -227,7 +241,7 @@ void displayMemoryUtilization() {
 
 void displayPerformanceMetrics() {
     printf("Performance Metrics:\n");
-    printf("Page Faults: %d\n", pageFaults);
+    printf("Caught Page Faults: %d\n", pageFaults);
     printf("Pages Fetched: %d\n", pageFetches);
     printf("Frame Evictions: %d\n", frameEvictions);
     displayMemoryUtilization(); // Display final memory utilization stats
@@ -284,37 +298,60 @@ unsigned int translateAddressForProcess(int processId, unsigned int virtualAddre
         unsigned int physicalAddress = (frameNumber * 256) + offset;
         return physicalAddress;
     } else {
-        // Handle the page fault if the page is not valid (i.e., not in physical memory)e
+        // Handle the page fault if the page is not valid (i.e., not in physical memory)
         handlePageFault(pageNumber, processId);
         return 0xFFFFFFFF; // Indicate that a page fault occurred and was handled
     }
 }
 
 
+typedef struct {
+    unsigned int processId;
+    unsigned int baseAddress; // This could be a bias or base for the process's logical address space
+} Process;
+
+Process processes[MAX_PROCESSES];
+
+
 void simulateMalloc(int processId) {
-    // Simulate a virtual address request by the process
-    unsigned int virtualAddress = (rand() % TOTAL_PAGES) * 256; // Assuming page size is 256
-    printf("Process %d requests memory allocation (malloc)\n", processId);
+    // Simulate requesting a random amount of memory, not just a single page
+    int numPages = (rand() % 5) + 1; // For example, request between 1 and 5 pages
 
-    // Attempt to translate the address, simulating page allocation
-    unsigned int physicalAddress = translateAddressForProcess(processId, virtualAddress);
+    printf("Process %d requests memory allocation of %d pages\n", processId, numPages);
 
-    // Check if translation was successful or led to a page fault
-    if (physicalAddress != 0xFFFFFFFF) {
-        printf("Allocated Virtual Address %u to Physical Address %u for Process %d\n", virtualAddress, physicalAddress, processId);
-    } else {
-        printf("Failed to allocate memory for Process %d\n", processId);
+    for (int i = 0; i < numPages; i++) {
+        unsigned int virtualAddress = (rand() % TOTAL_PAGES) * 256; // Assuming page size is 256
+        // This next step assumes the process is requesting contiguous pages, which might not always be realistic
+        // A more sophisticated simulation would track allocated ranges and find suitable spots for each new request
+        unsigned int physicalAddress = translateAddressForProcess(processId, virtualAddress + (i * 256));
+
+        if (physicalAddress != 0xFFFFFFFF) {
+            printf("Allocated Virtual Address %u (Page %d of %d) for Process %d\n", virtualAddress + (i * 256), i + 1, numPages, processId);
+            // Here, you'd add logic to track this allocation in a process-specific table
+        } else {
+            printf("Failed to allocate memory for Process %d\n", processId);
+            // Optionally, handle partial allocation failure (e.g., roll back or leave as fragmented)
+            break;
+        }
     }
 }
+
+
 
 void simulateFree(int processId, unsigned int virtualAddress) {
     printf("Process %d requests to free memory at Virtual Address %u\n", processId, virtualAddress);
     unsigned int pageNumber = virtualAddress / 256; // Assuming page size is 256
 
     // Check if the page is currently allocated
-    if (masterPageTable[processId].pageTable[pageNumber].valid) {
-        masterPageTable[processId].pageTable[pageNumber].valid = 0; // Mark as free
+    PageTableEntry* processPageTable = masterPageTable[processId].pageTable;
+
+    if (processPageTable[pageNumber].valid) {
+        processPageTable[pageNumber].valid = 0; // Mark as free
+        removeAllocatedAddress(&masterPageTable[processId], virtualAddress);
+
         printf("Virtual Address %u freed for Process %d\n", virtualAddress, processId);
+
+
     } else {
         printf("Virtual Address %u is not currently allocated for Process %d\n", virtualAddress, processId);
     }
@@ -367,9 +404,6 @@ void simulateMemoryAccess() {
     }
 }
 
-
-
-
 void displayPageAllocation() {
     printf("Page Allocation Status:\n");
     for (int i = 0; i < TOTAL_PAGES; i++) {
@@ -382,9 +416,9 @@ void displayPageAllocation() {
 
 int main() {
     initializeMasterPageTable(); // Initialize the master page table structure
-    
+
     // Initialize processes and their page tables
-    for (int i = 0; i < MAX_PROCESSES; i++) {
+    for (int i = 0; i < 2; i++) {
         int pid = initializeProcessPageTable(); // Attempt to initialize each process
         if (pid == -1) {
             printf("Failed to initialize process %d\n", i);
