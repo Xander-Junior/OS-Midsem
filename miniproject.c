@@ -384,7 +384,7 @@ int main() {
     initializeMasterPageTable(); // Initialize the master page table structure
     
     // Initialize processes and their page tables
-    for (int i = 0; i < MAX_PROCESSES; i++) {
+    for (int i = 0; i < 3; i++) {
         int pid = initializeProcessPageTable(); // Attempt to initialize each process
         if (pid == -1) {
             printf("Failed to initialize process %d\n", i);
