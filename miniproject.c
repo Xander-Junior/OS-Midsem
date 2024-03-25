@@ -89,6 +89,7 @@ int isAddressAllocatedToProcess(int processId, unsigned int address) {
     MasterPageTableEntry* processEntry = &masterPageTable[processId];
     for (int i = 0; i < processEntry->allocatedCount; i++) {
         if (processEntry->allocatedAddresses[i] == address) {
+	    printf("Address is allocated to the process");
             return 1; // Address is allocated to the process
         }
     }
